@@ -1,6 +1,5 @@
 import threading
 import time
-
 import numpy as np
 
 from pysc2 import maps
@@ -22,7 +21,13 @@ RACE = 'T'
 OPPONENT_RACE = 'Z'
 DIFFICULTY = '1'
 
+# Players
 _PLAYER_RELATIVE = features.SCREEN_FEATURES.player_relative.index
+_PLAYER_FRIENDLY = 1
+_PLAYER_NEUTRAL = 3  # beacon/minerals
+_PLAYER_HOSTILE = 4
+
+# Actions
 _NO_OP = actions.FUNCTIONS.no_op.id
 _SELECT_ARMY = actions.FUNCTIONS.select_army.id
 _BUILD_BARRACKS = actions.FUNCTIONS.Build_Barracks_screen.id
@@ -31,6 +36,8 @@ _SELECT_POINT = actions.FUNCTIONS.select_point.id
 _TRAIN_MARINE = actions.FUNCTIONS.Train_Marine_quick.id
 _ATTACK_MINIMAP = actions.FUNCTIONS.Attack_minimap.id
 _UNIT_TYPE = features.SCREEN_FEATURES.unit_type.index
+_ATTACK_SCREEN = actions.FUNCTIONS.Attack_screen.id
+
 
 # Unit IDs
 _TERRAN_BARRACKS = 21
@@ -46,9 +53,26 @@ _SCREEN = [0]
 _MINIMAP = [1]
 _QUEUED = [1]
 _NOADD = [0]
+_NOT_QUEUED = [0]
+_SELECT_ALL = [0]
 
-# class DefeatZergling(base_agent.BaseAgent):
-#     pass
+class DefeatZergling(base_agent.BaseAgent):
+    def step(self, obs):
+        # print(obs)
+        super(DefeatZergling, self).step(obs)
+        time.sleep(0.1)
+        if _ATTACK_SCREEN in obs.observation["available_actions"]:
+          player_relative = obs.observation["screen"][_PLAYER_RELATIVE]
+          zerg_y, zerg_x = (player_relative == _PLAYER_HOSTILE).nonzero()
+          if not zerg_y.any():
+            return actions.FunctionCall(_NO_OP, [])
+          index = np.argmax(zerg_y)
+          target = [zerg_x[index], zerg_y[index]]
+          return actions.FunctionCall(_ATTACK_SCREEN, [_NOT_QUEUED, target])
+        elif _SELECT_ARMY in obs.observation["available_actions"]:
+          return actions.FunctionCall(_SELECT_ARMY, [_SELECT_ALL])
+        else:
+          return actions.FunctionCall(_NO_OP, [])
 
 def main(unused_argv):
     """Run an agent."""
@@ -66,7 +90,7 @@ def main(unused_argv):
         visualize=True,
         camera_width_world_units=128) as env:
         env = available_actions_printer.AvailableActionsPrinter(env)
-        agent = random_agent.RandomAgent()
+        agent = DefeatZergling()#random_agent.RandomAgent()
         run_loop.run_loop([agent], env, 2500)
 
 if __name__ == "__main__":
